@@ -131,15 +131,19 @@ resource "kubernetes_job" "db_migrate" {
   }
 
   spec {
+    # Don't wait forever inside Terraform for the job pod; let k8s handle it asynchronously
+    wait_for_completion = false
+
     template {
       metadata {
         name = "leadflow-migrate"
       }
       spec {
         container {
-          name    = "migrate"
-          image   = "${var.container_registry}/backend:${var.app_version}"
-          command = ["npm", "run", "migrate:prod"]
+          name              = "migrate"
+          image             = "${var.container_registry}/backend:${var.app_version}"
+          image_pull_policy = "IfNotPresent"
+          command           = ["npm", "run", "migrate:prod"]
 
           env {
             name = "DATABASE_URL"
@@ -195,8 +199,9 @@ resource "kubernetes_deployment" "backend" {
 
       spec {
         container {
-          name  = "backend"
-          image = "${var.container_registry}/backend:${var.app_version}"
+          name              = "backend"
+          image             = "${var.container_registry}/backend:${var.app_version}"
+          image_pull_policy = "IfNotPresent"
 
           port {
             container_port = 3001
@@ -311,8 +316,9 @@ resource "kubernetes_deployment" "frontend" {
 
       spec {
         container {
-          name  = "frontend"
-          image = "${var.container_registry}/frontend:${var.app_version}"
+          name              = "frontend"
+          image             = "${var.container_registry}/frontend:${var.app_version}"
+          image_pull_policy = "IfNotPresent"
 
           port {
             container_port = 3000
