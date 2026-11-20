@@ -178,10 +178,10 @@ jobs:
 
       - name: Preload images into Kind cluster
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ steps.vars.outputs.sha_short }}
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.vars.outputs.sha_short }}
-          kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ steps.vars.outputs.sha_short }} --name leadflow-cluster
-          kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.vars.outputs.sha_short }} --name leadflow-cluster
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:sha-${{ steps.vars.outputs.sha_short }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:sha-${{ steps.vars.outputs.sha_short }}
+          kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:sha-${{ steps.vars.outputs.sha_short }} --name leadflow-cluster
+          kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:sha-${{ steps.vars.outputs.sha_short }} --name leadflow-cluster
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -189,7 +189,7 @@ jobs:
       - name: Terraform Init & Apply
         working-directory: leadflow/terraform
         env:
-          TF_VAR_app_version: ${{ steps.vars.outputs.sha_short }}
+          TF_VAR_app_version: sha-${{ steps.vars.outputs.sha_short }}
           TF_VAR_container_registry: ${{ env.REGISTRY }}/${{ github.repository }}
         run: |
           terraform init
