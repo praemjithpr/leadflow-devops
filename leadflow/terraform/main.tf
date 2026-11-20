@@ -130,10 +130,9 @@ resource "kubernetes_job" "db_migrate" {
     namespace = kubernetes_namespace.leadflow.metadata[0].name
   }
 
-  spec {
-    # Don't wait forever inside Terraform for the job pod; let k8s handle it asynchronously
-    wait_for_completion = false
+  wait_for_completion = false
 
+  spec {
     template {
       metadata {
         name = "leadflow-migrate"
