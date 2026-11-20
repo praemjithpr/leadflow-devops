@@ -1,0 +1,209 @@
+name: LeadFlow CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+        - deploy
+        - rollback
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # ── STAGE 1: TEST (Quality Gate) ─────────────────────────
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: leadflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            leadflow/backend/package-lock.json
+            leadflow/frontend/package-lock.json
+
+      # Backend Checks
+      - name: Backend - Install dependencies
+        working-directory: leadflow/backend
+        run: npm ci
+
+      - name: Backend - Lint & Typecheck
+        working-directory: leadflow/backend
+        run: npm run lint
+
+      - name: Backend - Run Migrations for Tests
+        working-directory: leadflow/backend
+        env:
+          DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/leadflow_test
+        run: npm run migrate
+
+      - name: Backend - Run Integration Tests
+        working-directory: leadflow/backend
+        env:
+          DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/leadflow_test
+        run: npm test
+
+      # Frontend Checks
+      - name: Frontend - Install dependencies
+        working-directory: leadflow/frontend
+        run: npm ci
+
+      - name: Frontend - Lint
+        working-directory: leadflow/frontend
+        run: npm run lint
+
+      - name: Frontend - Typecheck & Build Test
+        working-directory: leadflow/frontend
+        run: npm run build
+
+  # ── STAGE 2: BUILD & PUSH CONTAINERS ─────────────────────
+  build:
+    name: Build & Push Images
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest
+
+      - name: Build and push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./leadflow/backend
+          file: ./leadflow/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+
+      - name: Extract metadata (tags, labels) for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest
+
+      - name: Build and push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./leadflow/frontend
+          file: ./leadflow/frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+
+  # ── STAGE 3: DEPLOY & VERIFY (Zero Downtime) ─────────────
+  deploy:
+    name: Deploy & Health Verification
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Setup Kind Cluster (Local testbed cluster)
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: leadflow-cluster
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init & Apply
+        working-directory: leadflow/terraform
+        env:
+          TF_VAR_app_version: ${{ steps.vars.outputs.sha_short }}
+          TF_VAR_container_registry: ${{ env.REGISTRY }}/${{ github.repository }}
+        run: |
+          terraform init
+          # Apply plan to kind cluster
+          terraform apply -auto-approve
+
+      - name: Verify Zero-Downtime Rollout & Probes
+        run: |
+          echo "Checking deployment rollout status..."
+          kubectl rollout status deployment/leadflow-backend -n leadflow --timeout=120s
+          kubectl rollout status deployment/leadflow-frontend -n leadflow --timeout=120s
+
+      - name: Smoke Test (Verify healthy endpoints)
+        run: |
+          echo "Testing readiness probe inside cluster..."
+          kubectl run smoke-test --rm -i --restart='Never' --image=curlimages/curl -n leadflow -- \
+            curl -s -f http://leadflow-backend:3001/readyz || exit 1
+          echo "Smoke test passed successfully!"
+
+  # ── STAGE 4: ONE-COMMAND ROLLBACK (Manual or automated trigger) ───
+  rollback:
+    name: One-Command Rollback
+    if: github.event.inputs.action == 'rollback'
+    runs-on: ubuntu-latest
+    steps:
+      - name: One-command deployment undo
+        run: |
+          echo "Executing one-command rollback..."
+          # Command specified in PDF:
+          kubectl rollout undo deployment/leadflow-backend -n leadflow
+          kubectl rollout undo deployment/leadflow-frontend -n leadflow
+          echo "Rollback executed successfully."
