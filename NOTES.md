@@ -7,8 +7,13 @@ Assignment: Es Magico DevOps Intern Take-Home
 ---
 
 ## 📌 Submission Proof Links (Required Deliverables)
-* **Successful Pipeline Run (Green Run):** [GitHub Actions Run #6 (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44809583715)
-* **Pipeline Failure Preventing Bad Deployment (Red Run):** [GitHub Actions Run #4 (Blocked)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44808389146)
+* **Successful Pipeline Runs (Green Runs):**
+  * Primary Green Run (Pass): [GitHub Actions Run #6 (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44809583715)
+  * Secondary Green Run (Pass): [GitHub Actions Run (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44927335109)
+  * Pre-run Verification (Pass): [GitHub Actions Run (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44808843404)
+* **Pipeline Failure Preventing Bad Deployment (Red Runs):**
+  * Red Run #1 (Blocked/Halted): [GitHub Actions Run (Failure)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44803517855)
+  * Red Run #2 (Blocked/Halted): [GitHub Actions Run (Failure)](https://github.com/praemjithpr/leadflow-devops/actions/runs/44806843991)
 * **Rollback Command Verification:** Documented in [Section 3](#3-safe-releases--the-one-command-rollback) below.
 
 ---
