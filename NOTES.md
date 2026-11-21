@@ -7,8 +7,8 @@ Assignment: Es Magico DevOps Intern Take-Home
 ---
 
 ## 📌 Submission Proof Links (Required Deliverables)
-* **Successful Pipeline Run (Green Run):** [GitHub Actions Run #5 (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/13652616499)
-* **Pipeline Failure Preventing Bad Deployment (Red Run):** [GitHub Actions Run #4 (Blocked)](https://github.com/praemjithpr/leadflow-devops/actions/runs/13652431718)
+* **Successful Pipeline Run (Green Run):** [GitHub Actions Run #6 (Success)](https://github.com/praemjithpr/leadflow-devops/actions/runs/13652684820)
+* **Pipeline Failure Preventing Bad Deployment (Red Run):** [GitHub Actions Run #4 (Blocked)](https://github.com/praemjithpr/leadflow-devops/actions/runs/13652514337)
 * **Rollback Command Verification:** Documented in [Section 3](#3-safe-releases--the-one-command-rollback) below.
 
 ---
